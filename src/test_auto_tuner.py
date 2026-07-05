@@ -1,47 +1,41 @@
-import sys
-import os
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.core.feature_extractor import BasicFeatureExtractor
 from src.core.auto_tuner import HillClimbingAutoTuner
-from src.core.interfaces import AudioChunk, ASRResult
+from src.core.interfaces import ASRResult
 
-def test_tuner():
-    extractor = BasicFeatureExtractor()
-    tuner = HillClimbingAutoTuner(initial_params={"frequency": 10000.0})
+def test_tuner_evaluation():
+    tuner = HillClimbingAutoTuner({"frequency": 10000.0})
     
-    print("--- Test 1: Silence ---")
-    # Fake audio (1 sec of silence)
-    dummy_audio = AudioChunk(data=b'\x00'*32000, sample_rate=16000, timestamp=0.0)
-    features = extractor.extract_features(dummy_audio)
-    print("Features:", features)
-    
-    asr_res = ASRResult(
-        text="",
-        confidence_avg=0.0,
-        confidence_min=0.0,
-        words=[],
-        language="en"
+    # Good signal
+    good_asr = ASRResult(
+        text="This is a clear voice test", 
+        confidence_avg=0.9, 
+        confidence_min=0.8,
+        language="en",
+        words=[{"word": "This"}, {"word": "is"}, {"word": "a"}, {"word": "clear"}, {"word": "voice"}, {"word": "test"}]
     )
+    good_features = {"snr_est": 25.0, "energy": 0.5, "duration_sec": 5.0}
+    good_score = tuner.evaluate(good_asr, good_features)
     
-    score1 = tuner.evaluate(asr_res, features)
-    print("Score:", score1)
+    # Bad signal
+    bad_asr = ASRResult(
+        text="", 
+        confidence_avg=0.0, 
+        confidence_min=0.0,
+        language="en",
+        words=[]
+    )
+    bad_features = {"snr_est": 0.0, "energy": 0.001, "duration_sec": 5.0}
+    bad_score = tuner.evaluate(bad_asr, bad_features)
     
-    next_params = tuner.get_next_parameters(score1)
-    print("Next Params:", next_params)
-    
-    print("\n--- Test 2: Good Speech ---")
-    features["energy"] = 0.5
-    features["snr_est"] = 15.0
-    asr_res.confidence_avg = 0.8
-    asr_res.words = [{"word": "hello", "start":0, "end":0.2, "probability":0.9} for _ in range(3)]
-    
-    score2 = tuner.evaluate(asr_res, features)
-    print("Score:", score2)
-    
-    next_params2 = tuner.get_next_parameters(score2)
-    print("Next Params 2:", next_params2)
+    assert good_score > bad_score, "Good signal should score higher than bad signal"
 
-if __name__ == "__main__":
-    test_tuner()
+def test_tuner_threshold():
+    tuner = HillClimbingAutoTuner({"frequency": 10000.0})
+    
+    # If score is > 0.7, it should return None to not retune
+    next_params = tuner.get_next_parameters(0.8)
+    assert next_params is None, "Tuner should not hop if score is above threshold"
+    
+    # If score is bad, it should hop
+    next_params_bad = tuner.get_next_parameters(0.1)
+    assert next_params_bad is not None
+    assert next_params_bad["frequency"] != 10000.0

@@ -34,28 +34,29 @@ class MockRadioClient(IRadioClient):
             self.mode = params['mode']
             print(f"[MockRadio] Changed mode to {self.mode}")
 
-    def read_audio(self, chunk_size: int = 12000) -> AudioChunk:
-        """Simulate reading 1 second of audio at a time (12kHz)."""
+    def read_audio(self, chunk_size: int = 60000) -> AudioChunk:
+        """Simulate reading audio. 12000 samples = 1 sec."""
         if not self._running:
             raise Exception("Stream is closed")
             
-        time.sleep(1.0) # simulate blocking read of 1 second
+        duration = chunk_size / 12000.0
+        time.sleep(duration) # simulate blocking read
         
-        t = np.linspace(0, 1, 12000, endpoint=False)
+        t = np.linspace(0, duration, chunk_size, endpoint=False)
         
-        # Determine if there's a "signal" at this frequency.
         # Let's say there is a strong signal at 10000.5 kHz
         target_freq = 10000.5
         distance = abs(self.frequency - target_freq)
         
         if distance < 0.1:
-            # Tuned! Generate a clean tone (400 Hz) + voice simulation later if we want
+            # Tuned! Generate a clean tone (400 Hz)
             signal = np.sin(2 * np.pi * 400 * t) * 0.8
-            # Add some white noise
-            signal += np.random.normal(0, 0.1, 12000)
+            signal += np.random.normal(0, 0.1, chunk_size)
+            rssi = -60
         else:
             # Static noise
-            signal = np.random.normal(0, 0.5, 12000)
+            signal = np.random.normal(0, 0.5, chunk_size)
+            rssi = -100
             
         # Clip
         signal = np.clip(signal, -1.0, 1.0)
@@ -66,5 +67,6 @@ class MockRadioClient(IRadioClient):
         return AudioChunk(
             data=audio_data,
             sample_rate=12000,
-            timestamp=time.time()
+            timestamp=time.time(),
+            rssi=rssi
         )

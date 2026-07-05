@@ -49,24 +49,26 @@ class KiwiSDRAdapter(IRadioClient):
 
     def connect(self) -> None:
         class Options:
-            pass
-        opt = Options()
-        opt.server_host = self.host
-        opt.server_port = self.port
-        opt.password = ""
-        opt.tlimit = None
-        opt.user = "AIListener"
-        opt.frequency = self.frequency
-        opt.modulation = self.mode
-        opt.lowcut = -5000 if self.mode == 'am' else 0
-        opt.highcut = 5000 if self.mode == 'am' else 3000
-        opt.agc_yaml = None
-        opt.snd_nb = False
-        opt.snd_nb_thr = None
-        opt.compression = False 
-        opt.wideband = False
-        opt.ws_timestamp = False
-        opt.socket_timeout = 10
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+            def __getattr__(self, name):
+                return False
+
+        opt = Options(
+            server_host=self.host,
+            server_port=self.port,
+            password="",
+            user="AIListener",
+            frequency=self.frequency,
+            modulation=self.mode,
+            lowcut=-5000 if self.mode == 'am' else 0,
+            highcut=5000 if self.mode == 'am' else 3000,
+            socket_timeout=10,
+            tlimit_password=False,
+            nolocal=False,
+            admin=False
+        )
         
         self.stream._options = opt
         self.stream._freq = self.frequency
@@ -82,6 +84,16 @@ class KiwiSDRAdapter(IRadioClient):
         # Give it a short moment to establish
         time.sleep(1)
 
+    def disconnect(self) -> None:
+        self._running = False
+        if hasattr(self, 'stream') and self.stream:
+            try:
+                # Force socket close to break out of blocking recv
+                if hasattr(self.stream, '_socket'):
+                    self.stream._socket.close()
+            except Exception as e:
+                pass
+                
     def _run_stream(self):
         try:
             self.stream.connect(self.host, self.port)

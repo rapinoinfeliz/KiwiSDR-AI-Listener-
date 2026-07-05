@@ -1,25 +1,35 @@
 import numpy as np
-import wave
+import scipy.io.wavfile as wavfile
 import os
 
-sample_rate = 12000
-duration = 2.0  # seconds
-frequency = 440.0  # Hz
+def generate_tone(filename, freq=440, duration=5, sample_rate=12000):
+    t = np.linspace(0, duration, sample_rate * duration, endpoint=False)
+    signal = 0.5 * np.sin(2 * np.pi * freq * t)
+    # Add some noise
+    signal += np.random.normal(0, 0.05, signal.shape)
+    
+    # Clip and convert
+    signal = np.clip(signal, -1.0, 1.0)
+    audio_data = (signal * 32767).astype(np.int16)
+    
+    wavfile.write(filename, sample_rate, audio_data)
+    print(f"Generated {filename}")
 
-t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-audio = 0.5 * np.sin(2 * np.pi * frequency * t)
+def generate_noise(filename, duration=5, sample_rate=12000):
+    signal = np.random.normal(0, 0.5, sample_rate * duration)
+    signal = np.clip(signal, -1.0, 1.0)
+    audio_data = (signal * 32767).astype(np.int16)
+    
+    wavfile.write(filename, sample_rate, audio_data)
+    print(f"Generated {filename}")
 
-# Convert to 16-bit PCM
-audio_integers = np.int16(audio * 32767)
+def main():
+    os.makedirs("dataset", exist_ok=True)
+    generate_tone("dataset/tone_440hz.wav", 440)
+    generate_noise("dataset/noise_static.wav")
+    generate_tone("dataset/bbc.wav", 1000) # Mock
+    generate_tone("dataset/ham_ssb.wav", 800) # Mock
+    generate_tone("dataset/numbers_am.wav", 600) # Mock
 
-dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dataset')
-os.makedirs(dataset_dir, exist_ok=True)
-filename = os.path.join(dataset_dir, 'tone_440hz.wav')
-
-with wave.open(filename, 'wb') as wf:
-    wf.setnchannels(1)
-    wf.setsampwidth(2)
-    wf.setframerate(sample_rate)
-    wf.writeframes(audio_integers.tobytes())
-
-print(f"Created {filename}")
+if __name__ == "__main__":
+    main()

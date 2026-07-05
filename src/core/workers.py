@@ -32,10 +32,9 @@ class RadioWorker(threading.Thread):
                 print(f"[RadioWorker] Applying new parameters: {control_msg}")
                 self.radio.set_parameters(control_msg)
             
-            # 2. Read audio (e.g. 5 seconds)
-            # This blocks until 5 seconds of audio are read
+            # 2. Read audio (e.g. 5 seconds, at 12kHz = 60000 samples)
             try:
-                audio_chunk = self.radio.read_audio(chunk_size=5)
+                audio_chunk = self.radio.read_audio(chunk_size=60000)
                 if audio_chunk and len(audio_chunk.data) > 0:
                     self.queue.push("audio", audio_chunk)
                 else:
@@ -49,6 +48,11 @@ class RadioWorker(threading.Thread):
                 
     def stop(self):
         self.running = False
+        try:
+            if hasattr(self.radio, 'disconnect'):
+                self.radio.disconnect()
+        except Exception as e:
+            print(f"[RadioWorker] Error disconnecting radio: {e}")
 
 class InferenceWorker(threading.Thread):
     def __init__(self, 
@@ -63,6 +67,14 @@ class InferenceWorker(threading.Thread):
         self.queue = queue
         self.running = False
         self.daemon = True
+        
+        # Instantiate Translator
+        try:
+            from .translator import LiteLLMTranslator
+            # Para testes rodando sem API KEY real, podemos usar mock=True
+            self.translator = LiteLLMTranslator(mock=True)
+        except Exception:
+            self.translator = None
 
     def run(self):
         self.running = True
@@ -77,20 +89,41 @@ class InferenceWorker(threading.Thread):
             print(f"\n[InferenceWorker] Processing {len(audio_chunk.data)} bytes of audio...")
             
             # 1. Extract Features
-            features = self.extractor.extract_features(audio_chunk)
-            print(f"[InferenceWorker] Features: SNR={features.get('snr_est', 0):.1f}dB, ZCR={features.get('zero_crossing_rate', 0):.3f}")
-            
-            # 2. ASR Transcribe
-            asr_res = self.asr.transcribe(audio_chunk)
-            print(f"[InferenceWorker] ASR: '{asr_res.text}' (Conf: {asr_res.confidence_avg:.2f})")
-            
-            # 3. Evaluate Objective Function
-            score = self.tuner.evaluate(asr_res, features)
-            print(f"[InferenceWorker] Objective Score: {score:.2f}")
-            
-            # 4. Get next params and push to control queue
-            next_params = self.tuner.get_next_parameters(score)
-            self.queue.push("control", next_params)
-            
+            try:
+                # 1. Extract Features
+                features = self.extractor.extract_features(audio_chunk)
+                print(f"[InferenceWorker] Features: SNR={features.get('snr_est', 0):.1f}dB, ZCR={features.get('zero_crossing_rate', 0):.3f}")
+                
+                # 2. ASR Transcribe
+                asr_res = self.asr.transcribe(audio_chunk)
+                text = asr_res.text
+                conf = asr_res.confidence_avg
+                print(f"[InferenceWorker] ASR: '{text}' (Conf: {conf:.2f})")
+                
+                # 3. Calculate Objective Score
+                score = self.tuner.evaluate(
+                    asr_res,
+                    features
+                )
+                
+                print(f"[InferenceWorker] Score: {score:.2f}")
+                
+                # Push the score to metrics so the main loop can feed the Scheduler
+                self.queue.push("metrics", {"score": score})
+                
+                # Use Translator if we got some decent text
+                if text and conf > 0.4 and self.translator:
+                    translation = self.translator.translate(text, "auto", "pt")
+                    if translation:
+                        print(f"🌍 [Tradução]: {translation}")
+
+                # 4. Get next radio parameters (Hill Climbing)
+                next_params = self.tuner.get_next_parameters(score)
+                if next_params:
+                    # 5. Push control back
+                    self.queue.push("control", next_params)
+            except Exception as e:
+                print(f"[InferenceWorker] Error: {e}")
+                
     def stop(self):
         self.running = False

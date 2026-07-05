@@ -57,6 +57,11 @@ class HillClimbingAutoTuner(IAutoTuner):
         Implements a simple stochastic hill climbing search over SDR parameters.
         For Phase 2, we just perturb the frequency to find a better signal.
         """
+        threshold = 0.7
+        if current_score >= threshold:
+            # We found a strong signal, don't change parameters
+            return None
+            
         if current_score >= self.best_score:
             # We found a better peak or are staying at peak. Explore slightly.
             delta = random.choice([-0.1, 0.1, -0.5, 0.5])

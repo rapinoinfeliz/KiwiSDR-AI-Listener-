@@ -1,5 +1,4 @@
 import time
-from src.core.kiwi_adapter import KiwiSDRAdapter
 from src.core.asr_engine import FasterWhisperEngine
 from src.core.feature_extractor import BasicFeatureExtractor
 from src.core.auto_tuner import HillClimbingAutoTuner
@@ -22,6 +21,9 @@ def main():
         print("Initializing Mock Radio Adapter (Local Testing)...")
         radio = MockRadioClient(frequency=10000.0)
     else:
+        # Import lazy para não quebrar sem a dependência do kiwi
+        from src.core.kiwi_adapter import KiwiSDRAdapter
+        
         print("Discovering SDR nodes...")
         discovery = KiwiSDRDiscoveryService()
         nodes = discovery.fetch_nodes()
@@ -52,6 +54,14 @@ def main():
     try:
         while True:
             time.sleep(1)
+            
+            # Consome as métricas de inferência para alimentar o Scheduler
+            metric_msg = queue.pop("metrics")
+            if metric_msg and not use_mock and 'scheduler' in locals() and scheduler:
+                if 'score' in metric_msg and best_node:
+                    # O AutoTuner retornou uma qualidade. Passamos pro Multi-Armed Bandit
+                    scheduler.update_node_score(best_node.host, best_node.port, metric_msg['score'])
+
             if not radio_worker.is_alive():
                 print("[Main] RadioWorker encerrou inesperadamente.")
                 if not use_mock and 'scheduler' in locals() and scheduler:

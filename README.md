@@ -16,7 +16,7 @@ The system is built on a highly modular, decoupled architecture separating IO-bo
 
 ## Installation
 
-Ensure you have Python 3.10+ installed. This project uses `uv` for fast dependency management.
+Ensure you have Python 3.12+ installed. This project uses `uv` for fast dependency management.
 
 ```bash
 # Clone the repository
