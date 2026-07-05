@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KiwiSDR AI Listener Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app">
+        <header>
+            <h1>KiwiSDR AI Listener</h1>
+            <div class="status-badge" id="app-status">OFFLINE</div>
+        </header>
+
+        <div class="dashboard-grid">
+            <div class="sidebar">
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h2>Controles Engine</h2>
+                    <div class="controls">
+                        <button id="btn-start" class="primary">Start Live</button>
+                        <button id="btn-start-mock">Start Mock</button>
+                        <button id="btn-stop" class="danger" disabled>Stop</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Métricas em Tempo Real</h2>
+                    <div class="metric">
+                        <span class="label">Nó Conectado</span>
+                        <span class="value" id="val-node">---</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Frequência</span>
+                        <span class="value" id="val-freq">--- kHz</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">AutoTuner Score</span>
+                        <span class="value" id="val-score">0.00</span>
+                    </div>
+                    <div class="metric" style="border-bottom: none; padding-bottom: 0;">
+                        <span class="label">Whisper Confidence</span>
+                        <span class="value" id="val-conf">0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="terminal-container">
+                <h2>Terminal de Escuta</h2>
+                <div class="logs" id="logs-container">
+                    <!-- Logs will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/app.js"></script>
+</body>
+</html>

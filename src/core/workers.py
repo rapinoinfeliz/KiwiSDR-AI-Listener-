@@ -112,16 +112,32 @@ class InferenceWorker(threading.Thread):
                 self.queue.push("metrics", {"score": score})
                 
                 # Use Translator if we got some decent text
+                translation = ""
                 if text and conf > 0.4 and self.translator:
                     translation = self.translator.translate(text, "auto", "pt")
                     if translation:
                         print(f"🌍 [Tradução]: {translation}")
+
+                # Push the UI event
+                if text:
+                    self.queue.push("events", {
+                        "type": "transcription",
+                        "text": text,
+                        "translation": translation,
+                        "score": score,
+                        "confidence": conf,
+                        "frequency": self.tuner.current_params.get("frequency", 10000.0)
+                    })
 
                 # 4. Get next radio parameters (Hill Climbing)
                 next_params = self.tuner.get_next_parameters(score)
                 if next_params:
                     # 5. Push control back
                     self.queue.push("control", next_params)
+                    self.queue.push("events", {
+                        "type": "tuning",
+                        "frequency": next_params.get("frequency")
+                    })
             except Exception as e:
                 print(f"[InferenceWorker] Error: {e}")
                 
